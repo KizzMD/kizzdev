@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07070b">
+<title>KizzDev Saver — tempel, ambil, simpan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#07070b;--bone:#f2efe8;--mute:#8b8a99;--line:#25242f;--card:rgba(255,255,255,.045);--c1:#7df9ff;--c2:#b69cff;--c3:#ff9ed8;--c4:#fff0a8;--err:#ff8585;--ok:#9dffb4;
+--holo:linear-gradient(110deg,#7df9ff,#b69cff 35%,#ff9ed8 65%,#fff0a8)}
+*{box-sizing:border-box;margin:0}
+html{background:var(--ink)}
+body{font-family:Outfit,system-ui,sans-serif;color:var(--bone);min-height:100vh;overflow-x:hidden;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+button{font:inherit;cursor:pointer;border:0;color:inherit;background:none}
+:focus-visible{outline:2px solid var(--c1);outline-offset:2px}
+canvas{display:block}
+#bg{position:fixed;inset:0;width:100%;height:100%;z-index:-2}
+#cf{position:fixed;inset:0;width:100%;height:100%;z-index:70;pointer-events:none}
+#glow{position:fixed;left:0;top:0;width:520px;height:520px;margin:-260px 0 0 -260px;border-radius:50%;background:radial-gradient(circle,rgba(182,156,255,.16),transparent 65%);z-index:-1;pointer-events:none;will-change:transform}
+.wrap{max-width:860px;margin:0 auto;padding:18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pop{from{opacity:0;transform:translateY(16px) scale(.97)}}
+@keyframes sh{to{background-position:-200% 0}}
+@keyframes hol{to{background-position:200% 0}}
+/* ---------- LOBBY ---------- */
+#lobby{position:fixed;inset:0;z-index:50;background:var(--ink);overflow:hidden;transition:opacity .6s .1s,visibility .6s .1s}
+#lobby.out{opacity:0;visibility:hidden}
+#lc{position:absolute;inset:0;width:100%;height:100%}
+#lobby::after{content:"";position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .5s .7s}
+#lobby.go::after{opacity:.9}
+.lt{position:absolute;top:calc(20px + env(safe-area-inset-top));left:22px;right:22px;display:flex;justify-content:space-between;font-family:Syne;font-weight:800;letter-spacing:.02em;font-size:15px}
+.lt span:last-child{font-family:Outfit;font-weight:500;color:var(--mute);font-size:13px}
+.big{position:absolute;left:14px;bottom:calc(8px + env(safe-area-inset-bottom));font-family:Syne;font-weight:800;font-size:clamp(110px,30vw,300px);line-height:.8;letter-spacing:-.06em;color:transparent;-webkit-text-stroke:1.5px rgba(242,239,232,.55);user-select:none;transition:opacity .4s}
+.go .big{opacity:0}
+.enter{position:absolute;right:24px;bottom:calc(40px + env(safe-area-inset-bottom));width:104px;height:104px;border-radius:50%;background:var(--holo);background-size:200% 100%;color:var(--ink);font-weight:700;font-size:15px;opacity:0;transform:scale(.4);pointer-events:none;transition:.5s cubic-bezier(.2,1.4,.4,1);animation:hol 4s linear infinite}
+.enter.rdy{opacity:1;transform:none;pointer-events:auto}
+.enter.rdy::before{content:"";position:absolute;inset:-9px;border-radius:50%;border:1.5px solid var(--c2);animation:ring 1.8s ease-out infinite}
+@keyframes ring{to{transform:scale(1.4);opacity:0}}
+.go .enter,.go .lt{opacity:0;transition:.3s}
+/* ---------- HERO ---------- */
+nav{display:flex;justify-content:space-between;align-items:center;padding:8px 0 40px}
+.logo{font-family:Syne;font-weight:800;font-size:19px;letter-spacing:.01em}
+.pill{display:flex;align-items:center;gap:8px;font-size:12px;padding:7px 13px;border-radius:99px;border:1px solid var(--line);background:var(--card);backdrop-filter:blur(10px)}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--mute)}
+.pill.on i{background:var(--ok);animation:pg 1.8s infinite}.pill.off i{background:var(--err)}
+@keyframes pg{0%{box-shadow:0 0 0 0 rgba(157,255,180,.7)}80%,100%{box-shadow:0 0 0 8px transparent}}
+h1{font-family:Syne;font-weight:800;font-size:clamp(50px,14.5vw,112px);line-height:.9;letter-spacing:-.045em}
+h1 span{display:block}
+.o{color:transparent;-webkit-text-stroke:1.6px var(--bone)}
+.h{background:var(--holo);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:hol 6s linear infinite}
+.sub{color:var(--mute);margin:22px 0 28px;line-height:1.6;max-width:44ch;font-size:16px}
+/* command bar */
+.bar{display:flex;align-items:center;gap:6px;padding:7px 7px 7px 18px;border-radius:22px;border:1.5px solid var(--line);background:rgba(10,10,18,.7);backdrop-filter:blur(16px);transition:box-shadow .3s}
+.bar:focus-within{border-color:transparent;background:linear-gradient(#0b0b14,#0b0b14) padding-box,var(--holo) border-box;box-shadow:0 0 40px -8px rgba(182,156,255,.65)}
+.bar svg{width:20px;height:20px;flex:none;stroke:var(--mute);fill:none;stroke-width:2;stroke-linecap:round}
+input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--bone);font:inherit;font-size:16px;padding:14px 6px}
+input::placeholder{color:var(--mute)}
+.chip{color:var(--c1);font-size:14px;padding:8px 10px}
+.go{background:var(--holo);background-size:200% 100%;color:var(--ink);font-weight:700;padding:0 28px;border-radius:16px;min-height:52px;transition:transform .15s}
+.go:hover{animation:hol 2s linear infinite}.go:active{transform:scale(.95)}.go:disabled{opacity:.5;cursor:wait}
+/* bento platform */
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:26px 0 6px}
+.pf{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:20px;min-height:98px;padding:13px;border-radius:18px;border:1px solid var(--line);background:radial-gradient(160px circle at var(--mx,50%) var(--my,0),rgba(182,156,255,.2),transparent 70%),var(--card);font-size:13px;font-weight:500;transition:transform .25s,border-color .25s;text-align:left;overflow:hidden}
+.pf:hover{transform:translateY(-4px)}
+.pf b{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px}
+.pf.on{border-color:transparent;background:linear-gradient(#10101b,#10101b) padding-box,var(--holo) border-box;border:1.5px solid transparent;transform:translateY(-4px);box-shadow:0 14px 34px -14px var(--c2)}
+@media(min-width:700px){.grid{grid-template-columns:repeat(8,1fr)}.pf{min-height:110px;font-size:12px}}
+/* ---------- LOADING ---------- */
+#load{display:none;margin-top:22px;border-radius:26px;border:1px solid var(--line);background:var(--card);backdrop-filter:blur(14px);padding:18px;gap:16px;grid-template-columns:150px 1fr;align-items:center}
+#load.show{display:grid;animation:pop .4s}
+.lw{width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(125,249,255,.14),transparent 70%)}
+#lg{width:100%;height:100%}
+.lr{min-width:0}.lh{font-family:Syne;font-weight:800;font-size:19px;margin-bottom:10px}
+#logs div{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--mute);padding:4px 0;transition:color .3s}
+#logs i{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);flex:none;position:relative}
+#logs .cur{color:var(--bone)}#logs .cur i{border-color:var(--c1) transparent var(--c1) transparent;animation:spin .8s linear infinite}
+#logs .done{color:var(--bone)}#logs .done i{border:0;background:var(--holo)}
+#logs .done i::after{content:"";position:absolute;left:4px;top:2px;width:3px;height:6px;border:solid var(--ink);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.lm{display:flex;justify-content:space-between;font-size:12px;color:var(--mute);margin-top:12px;font-variant-numeric:tabular-nums}
+#skel{display:none;margin-top:16px;border-radius:24px;border:1px solid var(--line);overflow:hidden}
+#skel.show{display:block}
+#skel i{display:block;background:linear-gradient(100deg,rgba(255,255,255,.03) 30%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.03) 70%) 0 0/200% 100%;animation:sh 1.3s linear infinite}
+#skel i:nth-child(1){height:190px}#skel i:nth-child(2){height:16px;width:70%;margin:18px 18px 10px;border-radius:8px}#skel i:nth-child(3){height:44px;margin:0 18px 18px;border-radius:12px}
+@media(max-width:480px){#load{grid-template-columns:1fr;justify-items:center}.lr{width:100%}}
+/* ---------- MESSAGE / RESULT ---------- */
+#msg{display:none;margin-top:18px;padding:15px 17px;border-radius:16px;background:rgba(255,133,133,.09);border:1px solid var(--err);color:var(--err);line-height:1.5;animation:pop .3s}
+#msg small{display:block;margin-top:6px;opacity:.8;font-size:12px;word-break:break-word}
+#card{display:none;margin-top:22px;border-radius:26px;border:1px solid var(--line);background:var(--card);overflow:hidden;backdrop-filter:blur(14px)}
+#card.show{display:block;animation:pop .5s cubic-bezier(.2,1.2,.4,1)}
+.pv{background:#000;display:flex;justify-content:center;max-height:460px}
+.pv video,.pv img{max-width:100%;max-height:460px}.pv audio{width:100%;margin:16px}
+.hd{padding:18px 18px 12px}.hd h3{font-family:Syne;font-weight:700;font-size:18px;line-height:1.3;word-break:break-word}
+.hd small{display:inline-block;margin-top:8px;color:var(--c1);font-size:12px;padding:3px 10px;border:1px solid var(--line);border-radius:99px}
+.dl{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--line)}
+.dl span{flex:1;font-size:15px}
+.dl em{font-style:normal;font-size:12px;padding:3px 9px;border-radius:99px;background:rgba(125,249,255,.12);color:var(--c1);margin-left:8px}
+.cp{border:1px solid var(--line);border-radius:13px;padding:11px 14px;font-size:14px}
+.dlb{position:relative;overflow:hidden;isolation:isolate;min-width:136px;padding:12px 18px;border-radius:14px;background:var(--bone);font-weight:700;font-size:14px;--p:0%}
+.dlb span{position:relative;color:#fff;mix-blend-mode:difference}
+.dlb::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--p);background:var(--holo);z-index:-1;transition:width .25s}
+.dlb.busy{background:#17161f}
+.dlb.ind::before{width:38%;animation:sl 1s ease-in-out infinite alternate}
+@keyframes sl{from{transform:translateX(-10%)}to{transform:translateX(165%)}}
+.dlb.ok::before{width:100%}
+/* ---------- LAIN ---------- */
+h2{font-family:Syne;font-weight:800;font-size:18px;margin:38px 0 12px}
+.stat{display:flex;gap:10px}.stat div{flex:1;padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--card)}
+.stat b{display:block;font-family:Syne;font-weight:800;font-size:34px;line-height:1}.stat small{color:var(--mute);font-size:13px}
+.hi{display:flex;justify-content:space-between;gap:10px;padding:13px 15px;border:1px solid var(--line);border-radius:15px;background:var(--card);margin-bottom:8px;font-size:14px;width:100%;text-align:left;transition:border-color .2s}
+.hi:hover{border-color:var(--c2)}.hi span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hi em{font-style:normal;color:var(--mute);flex:none}
+footer{color:var(--mute);font-size:13px;line-height:1.6;margin:44px 0 20px;padding-top:18px;border-top:1px solid var(--line)}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,30px);background:var(--bone);color:var(--ink);padding:12px 22px;border-radius:99px;font-size:14px;font-weight:600;opacity:0;transition:.3s;z-index:80;pointer-events:none}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01s!important;animation-iteration-count:1!important;transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas><canvas id="cf"></canvas><div id="glow"></div>
+
+<div id="lobby">
+  <canvas id="lc"></canvas>
+  <div class="lt"><span>KIZZDEV SAVER</span><span id="ls">booting</span></div>
+  <div class="big" id="big">000</div>
+  <button class="enter" id="enter">Masuk</button>
+</div>
+
+<main class="wrap">
+  <nav><div class="logo">KIZZDEV</div><div class="pill" id="pill"><i></i><span>cek server…</span></div></nav>
+
+  <h1><span class="o">Tempel.</span><span class="h">Ambil.</span><span>Simpan.</span></h1>
+  <p class="sub">Video, foto, dan audio dari 8 platform dalam satu tempat. Tempel link, tonton dulu, lalu unduh.</p>
+
+  <div class="bar">
+    <svg viewBox="0 0 24 24"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+    <input id="url" type="url" inputmode="url" autocomplete="off" placeholder="Tempel link di sini…" aria-label="Link konten">
+    <button class="chip" id="paste">Tempel</button>
+    <button class="go" id="go">Ambil</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <section id="load" aria-live="polite">
+    <div class="lw"><canvas id="lg"></canvas></div>
+    <div class="lr">
+      <div class="lh">Memindai <span id="plat">link</span></div>
+      <div id="logs"></div>
+      <div class="lm"><span id="phase">memulai</span><span id="tm">0.0s</span></div>
+    </div>
+  </section>
+  <div id="skel"><i></i><i></i><i></i></div>
+
+  <div id="msg" role="alert"></div>
+
+  <section id="card">
+    <div class="pv" id="pv"></div>
+    <div class="hd"><h3 id="title"></h3><small id="meta"></small></div>
+    <div id="list"></div>
+  </section>
+
+  <h2>Di perangkat ini</h2>
+  <div class="stat"><div><b id="sOk">0</b><small>link berhasil diambil</small></div><div><b id="sDl">0</b><small>file diunduh</small></div></div>
+
+  <h2>Riwayat</h2>
+  <div id="hist"><p style="color:var(--mute);font-size:14px">Belum ada. Link yang berhasil muncul di sini.</p></div>
+
+  <footer>Gunakan hanya untuk konten milikmu atau yang kamu punya izinnya. Hormati hak cipta kreator. KizzDev tidak menyimpan file apa pun.</footer>
+</main>
+<div id="toast"></div>
+
+<script>
+const $=(id)=>document.getElementById(id);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:v}catch{return d}},set(k,v){try{localStorage.setItem(k,v)}catch{}}};
+const q=new URLSearchParams(location.search).get("api");if(q)store.set("kz_api",q);
+const base=()=>(store.get("kz_api","")||"").replace(/\/$/,"");
+const num=(k)=>parseInt(store.get(k,"0"),10)||0;
+const REDUCE=matchMedia("(prefers-reduced-motion:reduce)").matches;
+function toast(t){const e=$("toast");e.textContent=t;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),2400)}
+function stats(){$("sOk").textContent=num("kz_ok");$("sDl").textContent=num("kz_dl")}stats();
+
+/* ===== Globe: bola partikel 3D + bintang warp ===== */
+function Globe(cv,o={}){
+  const x=cv.getContext("2d"),dpr=Math.min(devicePixelRatio||1,2),N=o.n||650,P=[];
+  for(let i=0;i<N;i++){const y=1-2*(i+.5)/N,r=Math.sqrt(1-y*y),t=i*2.39996;P.push([Math.cos(t)*r,y,Math.sin(t)*r])}
+  const S=o.stars?Array.from({length:160},()=>({x:Math.random()*2-1,y:Math.random()*2-1,z:Math.random()})):[];
+  const a=Object.assign({rot:0,speed:.005,tilt:.4,scale:.3,cx:.5,cy:.5,alpha:1,sweep:false,scan:-9,ss:.0015,mx:0,my:0},o);
+  let W=1,H=1,on=true;
+  const size=()=>{const b=cv.getBoundingClientRect();W=cv.width=Math.max(1,b.width*dpr);H=cv.height=Math.max(1,b.height*dpr)};
+  size();addEventListener("resize",size);
+  addEventListener("pointermove",e=>{a.mx=e.clientX/innerWidth-.5;a.my=e.clientY/innerHeight-.5});
+  function draw(){
+    x.clearRect(0,0,W,H);
+    if(S.length){const cx=W/2,cy=H/2;for(const s of S){const pz=s.z;s.z-=a.ss;if(s.z<=.02){s.x=Math.random()*2-1;s.y=Math.random()*2-1;s.z=1;continue}
+      const k1=.25/pz,k2=.25/s.z;x.strokeStyle="rgba(242,239,232,"+Math.min(1,(1-s.z)*1.3)+")";x.lineWidth=dpr*(1-s.z)*1.7;
+      x.beginPath();x.moveTo(cx+s.x*cx*k1,cy+s.y*cy*k1);x.lineTo(cx+s.x*cx*k2,cy+s.y*cy*k2);x.stroke()}}
+    a.rot+=a.speed;if(a.sweep)a.scan=Math.sin(performance.now()/520)*1.05;
+    const R=Math.min(W,H)*a.scale,cx=W*a.cx+a.mx*dpr*-26,cy=H*a.cy+a.my*dpr*-26,cr=Math.cos(a.rot),sr=Math.sin(a.rot),tl=a.tilt+a.my*.5,ct=Math.cos(tl),st=Math.sin(tl);
+    for(const p of P){
+      const X=p[0]*cr+p[2]*sr,Z=-p[0]*sr+p[2]*cr,Y=p[1]*ct-Z*st,Z2=p[1]*st+Z*ct,f=1.6/(2.6-Z2),t=(Z2+1)/2,u=(p[1]+1)/2,hit=Math.abs(Y-a.scan)<.075;
+      x.fillStyle=hit?"rgba(255,255,255,"+a.alpha+")":"rgba("+(125+130*u|0)+","+(249-91*u|0)+","+(255-39*u|0)+","+((.1+.75*t)*a.alpha)+")";
+      const s=(hit?2.8:.7+1.5*t)*dpr;x.fillRect(cx+X*R*f-s/2,cy+Y*R*f-s/2,s,s)}
+  }
+  function loop(){if(!on)return;draw();requestAnimationFrame(loop)}
+  if(REDUCE){a.speed=0;a.ss=0;a.scan=-9;a.sweep=false;draw()}else loop();
+  return{a,stop(){on=false},start(){if(!on){on=true;loop()}}};
+}
+
+/* ===== Lobby ===== */
+const lg=Globe($("lc"),{n:950,stars:true,scale:.3,speed:.006,sweep:true,ss:.0015,cy:.46});
+const MSG=["membangunkan server","memuat 8 platform","menyetel scraper","sinkronisasi","siap"];
+let n=0;const ti=setInterval(()=>{n=Math.min(100,n+Math.random()*7+2);$("big").textContent=String(Math.floor(n)).padStart(3,"0");$("ls").textContent=MSG[Math.min(4,Math.floor(n/22))];
+  if(n>=100){clearInterval(ti);$("enter").classList.add("rdy")}},90);
+let bg=null;
+function enter(){
+  if(!$("enter").classList.contains("rdy")||$("lobby").classList.contains("go"))return;
+  $("lobby").classList.add("go");const t0=performance.now();
+  (function w(){const k=Math.min(1,(performance.now()-t0)/1100);lg.a.ss=.0015+k*k*.11;lg.a.scale=.3+k*k*1.3;lg.a.speed=.006+k*.05;
+    if(k<1)requestAnimationFrame(w);else{$("lobby").classList.add("out");setTimeout(()=>lg.stop(),800)}})();
+  if(!bg)bg=Globe($("bg"),{n:520,scale:.46,cx:.84,cy:.1,speed:.0016,alpha:.42,tilt:.5});
+}
+$("enter").onclick=enter;
+addEventListener("keydown",e=>{if(e.key==="Enter"&&!$("lobby").classList.contains("out"))enter()});
+// cahaya mengikuti jari/kursor
+addEventListener("pointermove",e=>{$("glow").style.transform="translate("+e.clientX+"px,"+e.clientY+"px)"});
+
+/* ===== Status server ===== */
+async function health(){const p=$("pill");
+  try{const r=await fetch(base()+"/api/health",{cache:"no-store"});const j=await r.json();if(!j.ok&&!j.status)throw 0;p.className="pill on";p.lastChild.textContent="API online · "+(j.loaded||[]).length+" modul"}
+  catch{p.className="pill off";p.lastChild.textContent="API offline"}}
+health();setInterval(health,30000);
+
+/* ===== Platform ===== */
+const PF=[
+ {id:"tiktok",n:"TikTok",c:"#1b1b1b",l:"♪",e:"tiktok.com/@user/video/…"},{id:"instagram",n:"Instagram",c:"#e4405f",l:"Ig",e:"instagram.com/reel/…"},
+ {id:"twitter",n:"X / Twitter",c:"#2b2b2b",l:"X",e:"x.com/user/status/…"},{id:"facebook",n:"Facebook",c:"#1877f2",l:"f",e:"facebook.com/watch/?v=…"},
+ {id:"pinterest",n:"Pinterest",c:"#e60023",l:"P",e:"pinterest.com/pin/…"},{id:"threads",n:"Threads",c:"#4a4a4a",l:"@",e:"threads.net/@user/post/…"},
+ {id:"bilibili",n:"Bilibili",c:"#00aeec",l:"B",e:"bilibili.com/video/…"},{id:"douyin",n:"Douyin",c:"#fe2c55",l:"抖",e:"douyin.com/video/…"}];
+const RE={tiktok:/tiktok\.com/,instagram:/instagram\.com|instagr\.am/,twitter:/(twitter|x)\.com/,facebook:/facebook\.com|fb\.watch|fb\.me/,pinterest:/pinterest\.|pin\.it/,threads:/threads\.(net|com)/,bilibili:/bilibili\.com|b23\.tv/,douyin:/douyin\.com/};
+const detect=(v)=>Object.keys(RE).find(k=>RE[k].test(v))||"";
+PF.forEach(p=>{const b=document.createElement("button");b.className="pf";b.dataset.id=p.id;
+  const i=document.createElement("b");i.style.background=p.c;i.textContent=p.l;const s=document.createElement("span");s.textContent=p.n;b.append(i,s);
+  b.onclick=()=>{$("url").placeholder="https://"+p.e;$("url").focus();mark(p.id)};
+  b.addEventListener("pointermove",e=>{const r=b.getBoundingClientRect();b.style.setProperty("--mx",e.clientX-r.left+"px");b.style.setProperty("--my",e.clientY-r.top+"px")});
+  $("grid").appendChild(b)});
+function mark(id){document.querySelectorAll(".pf").forEach(e=>e.classList.toggle("on",e.dataset.id===id))}
+$("url").addEventListener("input",e=>mark(detect(e.target.value)));
+
+/* ===== Loading ===== */
+const STEPS=[["Memeriksa link","verifikasi"],["Menghubungi server","koneksi"],["Membongkar halaman","ekstraksi"],["Mencari kualitas terbaik","analisis"],["Menyiapkan unduhan","finalisasi"]];
+let timers=[],tick,lgl=null;
+function startLoad(name){
+  const box=$("logs");box.textContent="";
+  STEPS.forEach((s,i)=>{const d=document.createElement("div");const k=document.createElement("i");const t=document.createElement("span");t.textContent=s[0];d.append(k,t);if(i===0)d.className="cur";box.appendChild(d)});
+  $("plat").textContent=name?PF.find(p=>p.id===name).n:"link";$("phase").textContent=STEPS[0][1];
+  $("load").classList.add("show");$("skel").classList.add("show");
+  if(!lgl)lgl=Globe($("lg"),{n:420,scale:.4,speed:.012,sweep:true,tilt:.35,ss:0});else lgl.start();
+  const t0=Date.now();tick=setInterval(()=>$("tm").textContent=((Date.now()-t0)/1000).toFixed(1)+"s",100);
+  [700,2200,5000,9000].forEach((ms,i)=>timers.push(setTimeout(()=>step(i+1),ms)));
+}
+function step(k){[...$("logs").children].forEach((e,i)=>e.className=i<k?"done":i===k?"cur":"");if(STEPS[k])$("phase").textContent=STEPS[k][1]}
+function endLoad(){timers.forEach(clearTimeout);timers=[];clearInterval(tick);$("load").classList.remove("show");$("skel").classList.remove("show");if(lgl)lgl.stop()}
+function err(t,d){const m=$("msg");m.textContent=t;if(d){const s=document.createElement("small");s.textContent=d;m.appendChild(s)}m.style.display="block"}
+
+async function run(){
+  const url=$("url").value.trim();$("msg").style.display="none";$("card").classList.remove("show");
+  if(!url){err("Tempel link dulu ya.");return}
+  $("go").disabled=true;startLoad(detect(url));
+  try{
+    const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),80000);
+    const r=await fetch(base()+"/api/resolve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url}),signal:ctl.signal});
+    clearTimeout(to);const j=await r.json();
+    if(!j.status){const d=(j.tried||[]).map(x=>x.s.split(".")[1]+": "+x.error).join(" • ");throw Object.assign(new Error(j.message||"Gagal"),{detail:d})}
+    step(5);render(j);addHist(url,j);store.set("kz_ok",num("kz_ok")+1);stats();
+  }catch(e){err(e.name==="AbortError"?"Server terlalu lama menjawab.":e.message==="Failed to fetch"?"Server tidak terjangkau. Pastikan server jalan (npm start).":e.message,e.detail)}
+  finally{endLoad();$("go").disabled=false}
+}
+
+/* ===== Hasil + unduh ===== */
+function render({platform,via,result}){
+  $("title").textContent=result.title||"Tanpa judul";$("meta").textContent=platform+" · via "+via.split(".")[1];
+  const items=result.downloads,pv=$("pv");pv.textContent="";const tp=(d)=>String(d.type||"").toLowerCase();
+  const first=items.find(d=>/video/.test(tp(d)))||items.find(d=>/audio/.test(tp(d)))||items.find(d=>/image|photo/.test(tp(d)))||items[0];
+  const kind=/audio/.test(tp(first))?"audio":/image|photo/.test(tp(first))?"img":"video";let el;
+  if(kind==="video"){el=document.createElement("video");el.controls=true;el.playsInline=true;el.preload="metadata";el.src=first.url;if(result.thumbnail)el.poster=result.thumbnail}
+  else if(kind==="audio"){el=document.createElement("audio");el.controls=true;el.src=first.url}
+  else{el=document.createElement("img");el.src=first.url;el.alt=""}
+  el.onerror=()=>{if(result.thumbnail){const i=document.createElement("img");i.src=result.thumbnail;i.alt="";pv.textContent="";pv.appendChild(i)}else pv.style.display="none"};
+  pv.style.display="";pv.appendChild(el);
+  const list=$("list");list.textContent="";
+  items.forEach((d,i)=>{const row=document.createElement("div");row.className="dl";
+    const s=document.createElement("span"),ty=tp(d)||"file";s.textContent=ty[0].toUpperCase()+ty.slice(1)+" "+(i+1);
+    const em=document.createElement("em");em.textContent=d.quality||d.label||"Asli";s.appendChild(em);
+    const cp=document.createElement("button");cp.className="cp";cp.textContent="Salin";cp.onclick=()=>navigator.clipboard.writeText(d.url).then(()=>toast("Link disalin"),()=>toast("Gagal menyalin"));
+    const b=document.createElement("button");b.className="dlb";const t=document.createElement("span");t.textContent="Unduh";b.appendChild(t);b.onclick=()=>download(d,b,result.title);
+    row.append(s,cp,b);list.appendChild(row)});
+  $("card").classList.add("show");$("card").scrollIntoView({behavior:"smooth",block:"start"});
+}
+async function download(d,btn,title){
+  if(btn.dataset.busy)return;btn.dataset.busy=1;btn.classList.remove("ok");btn.style.setProperty("--p","0%");
+  const tx=btn.firstChild,ty=String(d.type||"").toLowerCase(),ext=/audio/.test(ty)?"mp3":/image|photo/.test(ty)?"jpg":"mp4";
+  const name=((title||"kizzdev").replace(/[^\w ]+/g,"").trim().slice(0,50)||"kizzdev")+"."+ext;
+  btn.classList.add("busy");tx.textContent="0%";
+  try{
+    const r=await fetch(base()+"/api/proxy?url="+encodeURIComponent(d.url)+"&name="+encodeURIComponent(name));
+    if(!r.ok||!r.body)throw new Error("proxy");
+    const total=+r.headers.get("content-length")||0,rd=r.body.getReader(),parts=[];let got=0;if(!total)btn.classList.add("ind");
+    for(;;){const {done,value}=await rd.read();if(done)break;parts.push(value);got+=value.length;
+      if(total){const p=Math.round(got/total*100);btn.style.setProperty("--p",p+"%");tx.textContent=p+"%"}else tx.textContent=(got/1048576).toFixed(1)+" MB"}
+    const blob=new Blob(parts,{type:r.headers.get("content-type")||"application/octet-stream"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),30000);
+    btn.classList.remove("busy","ind");btn.classList.add("ok");tx.textContent="Tersimpan ✓";store.set("kz_dl",num("kz_dl")+1);stats();
+    const b=btn.getBoundingClientRect();burst(b.left+b.width/2,b.top+b.height/2);
+  }catch{btn.classList.remove("busy","ind");btn.style.setProperty("--p","0%");tx.textContent="Unduh";window.open(d.url,"_blank","noopener");toast("Cara cadangan: dibuka di tab baru")}
+  delete btn.dataset.busy;
+}
+
+/* ===== Konfeti ===== */
+const cf=$("cf"),cx2=cf.getContext("2d");let parts=[],run2=false;
+function fit(){cf.width=innerWidth;cf.height=innerHeight}fit();addEventListener("resize",fit);
+function burst(x,y){if(REDUCE)return;const C=["#7df9ff","#b69cff","#ff9ed8","#fff0a8","#f2efe8"];
+  for(let i=0;i<70;i++){const a=Math.random()*6.283,v=3+Math.random()*7;parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-4,s:3+Math.random()*4,c:C[i%5],l:1,r:Math.random()*6})}
+  if(!run2){run2=true;(function f(){cx2.clearRect(0,0,cf.width,cf.height);parts=parts.filter(p=>p.l>0);
+    for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=.28;p.vx*=.99;p.l-=.014;p.r+=.2;cx2.globalAlpha=Math.max(0,p.l);cx2.fillStyle=p.c;cx2.save();cx2.translate(p.x,p.y);cx2.rotate(p.r);cx2.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);cx2.restore()}
+    if(parts.length)requestAnimationFrame(f);else{run2=false;cx2.clearRect(0,0,cf.width,cf.height)}})()}}
+
+/* ===== Riwayat ===== */
+function addHist(url,j){let h=[];try{h=JSON.parse(store.get("kz_hist","[]"))}catch{}
+  h=h.filter(x=>x.url!==url);h.unshift({url,t:j.result.title||url,p:j.platform});store.set("kz_hist",JSON.stringify(h.slice(0,10)));drawHist()}
+function drawHist(){let h=[];try{h=JSON.parse(store.get("kz_hist","[]"))}catch{}
+  if(!h.length)return;const box=$("hist");box.textContent="";
+  h.forEach(x=>{const b=document.createElement("button");b.className="hi";const s=document.createElement("span");s.textContent=x.t;const e=document.createElement("em");e.textContent=x.p;
+    b.append(s,e);b.onclick=()=>{$("url").value=x.url;mark(x.p);scrollTo({top:0,behavior:"smooth"})};box.appendChild(b)})}
+drawHist();
+
+$("go").onclick=run;
+$("url").addEventListener("keydown",e=>{if(e.key==="Enter")run()});
+$("paste").onclick=async()=>{try{$("url").value=await navigator.clipboard.readText();$("url").dispatchEvent(new Event("input"))}catch{toast("Izin clipboard ditolak, tempel manual")}};
+</script>
+</body>
+</html>
