@@ -1,0 +1,8 @@
+{
+  "name": "kizzdev-cloudflare",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "deploy": "wrangler deploy", "dev": "wrangler dev" },
+  "dependencies": { "scrapr": "github:coflyn/scrapr" },
+  "devDependencies": { "wrangler": "^4.0.0" }
+}
