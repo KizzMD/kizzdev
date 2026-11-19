@@ -90,6 +90,7 @@ local hub = {
 		code = nil,
 		drawerTotal = 0,
 		flipflopItems = {},
+		exits = {},
 		itemPrompt = {},
 		census = {},
 		categories = {},
@@ -780,6 +781,10 @@ local function isLockName(name)
 	return string.find(name, "^lock") ~= nil or string.find(name, "locks?[%d_ ]*$") ~= nil
 end
 
+local function isExitName(name)
+	return containsAny(name, { "exit", "escape", "finish", "keluar", "winzone" }) or name == "win"
+end
+
 local function classifyPrompt(prompt)
 	local names = {}
 	local node = prompt.Parent
@@ -928,6 +933,7 @@ function scanWorld()
 		drawers = {},
 		flipflops = {},
 		flipflopItems = {},
+		exits = {},
 		wardrobes = {},
 		keys = {},
 		locks = {},
@@ -1016,6 +1022,10 @@ function scanWorld()
 					if not isContainer(descendant, kind) and itemContextOk(descendant) then
 						claimed[descendant] = true
 						addItem(kind, descendant, nil)
+					end
+				elseif descendant:IsA("BasePart") and isExitName(name) then
+					if descendant:FindFirstChildWhichIsA("TouchTransmitter") then
+						table.insert(world.exits, descendant)
 					end
 				elseif descendant:IsA("Model") then
 					if string.find(name, "opah", 1, true) then
@@ -2647,10 +2657,20 @@ end
 local collectItems, resetWin
 do
 	local winState = { submitted = 0, lastSubmit = 0, lastExit = 0 }
+	local blockedItems = {}
 
 	local function isBlocked(prompt)
 		local expires = lootBlacklist[prompt]
 		return expires ~= nil and expires > os.clock()
+	end
+
+	local function itemBlocked(item)
+		local expires = blockedItems[item]
+		return expires ~= nil and expires > os.clock()
+	end
+
+	local function itemGone(item, startParent)
+		return item.Parent == nil or item.Parent ~= startParent or not item:IsDescendantOf(workspace)
 	end
 
 	-- Opens the drawers around a position so hidden items become reachable
@@ -2675,31 +2695,73 @@ do
 		return opened
 	end
 
-	-- Teleports next to an item and picks it up. Returns true when it is gone or its prompt is used.
+	-- Picks an item up by touching it (for items collected by walking over them)
+	local function touchItem(item, position)
+		local root = getRoot()
+		if not root then
+			return
+		end
+		pcall(function()
+			root.CFrame = CFrame.new(position + Vector3.new(0, 2.5, 0))
+			root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+		end)
+		if typeof(firetouchinterest) == "function" then
+			local part = item:IsA("BasePart") and item or item:FindFirstChildWhichIsA("BasePart", true)
+			if part then
+				pcall(firetouchinterest, root, part, 0)
+				task.wait(0.05)
+				pcall(firetouchinterest, root, part, 1)
+			end
+		end
+	end
+
+	-- Takes one item using its prompt, a click detector or a touch. Returns true when it was picked up.
 	local function takeItem(item)
+		local startParent = item.Parent
 		local triedDrawers = false
-		for attempt = 1, 3 do
+		for _ = 1, 3 do
 			if not hub.running or not isAlive() then
 				return false
 			end
-			local prompt = itemPrompt(item)
-			if not item.Parent or not prompt or not prompt.Parent then
+			if item.Parent == nil or not item:IsDescendantOf(workspace) then
 				return true
 			end
-			local position = promptPosition(prompt) or instancePosition(item)
+
+			local prompt = itemPrompt(item)
+			local position = (prompt and promptPosition(prompt)) or instancePosition(item)
 			if not position then
 				return false
 			end
-			teleportNear(position)
-			task.wait(0.2)
-			triggerPrompt(prompt)
-			task.wait(0.35)
-			if not item.Parent or not prompt.Parent or not prompt.Enabled then
-				return true
-			end
-			if attempt == 1 and not triedDrawers then
-				triedDrawers = true
-				openDrawersNear(position)
+
+			if prompt and prompt.Parent then
+				teleportNear(position)
+				task.wait(0.2)
+				if prompt.Enabled then
+					triggerPrompt(prompt)
+					task.wait(0.35)
+					if itemGone(item, startParent) or not prompt.Parent or not prompt.Enabled then
+						return true
+					end
+				end
+				if not triedDrawers then
+					triedDrawers = true
+					openDrawersNear(position)
+					task.wait(0.3)
+				end
+			else
+				local detector = item:FindFirstChildWhichIsA("ClickDetector", true)
+				if detector and typeof(fireclickdetector) == "function" then
+					teleportNear(position)
+					task.wait(0.2)
+					pcall(fireclickdetector, detector)
+					task.wait(0.35)
+				else
+					touchItem(item, position)
+					task.wait(0.4)
+				end
+				if itemGone(item, startParent) then
+					return true
+				end
 			end
 		end
 		return false
@@ -2728,13 +2790,13 @@ do
 
 				local items = {}
 				for _, item in ipairs(list) do
-					if item.Parent and itemPrompt(item) then
+					if item.Parent and item:IsDescendantOf(workspace) and instancePosition(item) then
 						table.insert(items, item)
 					end
 				end
 				if #items == 0 then
-					notify("Nothing to take", "No " .. label .. " with a pickup prompt found", "Warning")
-					pushLog("<Warning>No " .. label .. " found</Warning> - use Copy scan report")
+					notify("Nothing to take", "No " .. label .. " found. Are you inside a round?", "Warning")
+					pushLog("<Warning>No " .. label .. " found</Warning> - join a round, or use Copy scan report")
 					return
 				end
 
@@ -2744,18 +2806,21 @@ do
 				end)
 
 				local limit = all and #items or 1
+				local total = math.min(#items, limit)
 				local taken = 0
-				for index = 1, math.min(#items, limit) do
+				for index = 1, total do
 					if not hub.running or not isAlive() then
 						break
 					end
 					if takeItem(items[index]) then
 						taken = taken + 1
+					else
+						pushLog("<Warning>Could not take</Warning> " .. escapeRich(items[index].Name))
 					end
 				end
 
-				pushLog("<Success>Collected</Success> " .. taken .. "/" .. math.min(#items, limit) .. " " .. label)
-				notify("Collected", taken .. " " .. label .. " taken", taken > 0 and "Success" or "Warning")
+				pushLog("<Success>Collected</Success> " .. taken .. "/" .. total .. " " .. label)
+				notify("Collected", taken .. "/" .. total .. " " .. label .. " taken", taken > 0 and "Success" or "Warning")
 
 				if toggleValue(CollectReturn) and isAlive() then
 					local newRoot = getRoot()
@@ -2781,11 +2846,13 @@ do
 		local here = root.Position
 		local best, bestDistance = nil, math.huge
 		for _, key in ipairs(hub.world.keys) do
-			local prompt = key.Parent and itemPrompt(key)
-			if prompt and not isBlocked(prompt) then
-				local distance = distanceBetween(instancePosition(key), here)
-				if distance < bestDistance then
-					best, bestDistance = key, distance
+			if key.Parent and key:IsDescendantOf(workspace) and not itemBlocked(key) then
+				local position = instancePosition(key)
+				if position then
+					local distance = distanceBetween(position, here)
+					if distance < bestDistance then
+						best, bestDistance = key, distance
+					end
 				end
 			end
 		end
@@ -2884,6 +2951,58 @@ do
 		return true
 	end
 
+	-- Leaves the house: touches exit zones if the game has them, otherwise opens the door and walks through it
+	local function exitStep()
+		local world = hub.world
+		local root = getRoot()
+		if not root then
+			return false
+		end
+
+		for _, zone in ipairs(world.exits) do
+			local part = zone.Parent and (zone:IsA("BasePart") and zone or zone:FindFirstChildWhichIsA("BasePart", true))
+			if part then
+				if typeof(firetouchinterest) == "function" then
+					pcall(firetouchinterest, root, part, 0)
+					task.wait(0.05)
+					pcall(firetouchinterest, root, part, 1)
+				end
+				pcall(function()
+					root.CFrame = CFrame.new(part.Position + Vector3.new(0, 3, 0))
+				end)
+				task.wait(0.4)
+				hub.winInfo = "touched exit zone"
+				return true
+			end
+		end
+
+		local doorPosition = resolveTargetPosition("Front door")
+		if not doorPosition then
+			hub.winInfo = "exit not found"
+			return false
+		end
+		hub.winInfo = "heading to the exit"
+		teleportNear(doorPosition)
+		task.wait(0.3)
+
+		local doorPrompt = world.door and world.door:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if doorPrompt and doorPrompt.Enabled then
+			triggerPrompt(doorPrompt)
+			task.wait(0.5)
+		end
+
+		local humanoid = getHumanoid()
+		local currentRoot = getRoot()
+		if humanoid and currentRoot then
+			local flat = Vector3.new(doorPosition.X - currentRoot.Position.X, 0, doorPosition.Z - currentRoot.Position.Z)
+			if flat.Magnitude > 0.5 then
+				humanoid:MoveTo(doorPosition + flat.Unit * 14)
+				task.wait(1.5)
+			end
+		end
+		return true
+	end
+
 	function resetWin()
 		winState.submitted = 0
 		winState.lastSubmit = 0
@@ -2891,6 +3010,9 @@ do
 		hub.winInfo = "reset"
 		for prompt in pairs(lootBlacklist) do
 			lootBlacklist[prompt] = nil
+		end
+		for item in pairs(blockedItems) do
+			blockedItems[item] = nil
 		end
 	end
 
@@ -2902,34 +3024,37 @@ do
 			hub.winInfo = "waiting for character"
 			return
 		end
+
+		local world = hub.world
+		if #world.keys == 0 and #world.locks == 0 and not world.door and not world.opah then
+			hub.winInfo = "no round detected (nothing found)"
+			return
+		end
+
 		hub.taskBusy = true
 		local ok, err = pcall(function()
-			local world = hub.world
 			local now = os.clock()
 
 			local key = nextKey()
 			if key then
 				local _, colorName = keyColor(key)
-				local prompt = itemPrompt(key)
 				hub.winInfo = "taking " .. string.lower(colorName or "a") .. " key"
 				if takeItem(key) then
 					pushLog("<Success>Auto win</Success> took " .. escapeRich(colorName or "a key"))
 					useLocks(colorName)
-				elseif prompt then
-					lootBlacklist[prompt] = os.clock() + 12
+				else
+					blockedItems[key] = os.clock() + 12
+					pushLog("<Warning>Auto win</Warning> could not take " .. escapeRich(key.Name) .. ", skipping for now")
 				end
 				return
 			end
 
-			if world.note and not hub.code then
-				local prompt = itemPrompt(world.note)
-				if prompt and not isBlocked(prompt) then
-					hub.winInfo = "taking passcode note"
-					if not takeItem(world.note) then
-						lootBlacklist[prompt] = os.clock() + 12
-					end
-					return
+			if world.note and not hub.code and world.note:IsDescendantOf(workspace) and not itemBlocked(world.note) then
+				hub.winInfo = "taking passcode note"
+				if not takeItem(world.note) then
+					blockedItems[world.note] = os.clock() + 12
 				end
+				return
 			end
 
 			if useLocks(nil) then
@@ -2951,18 +3076,7 @@ do
 
 			if now - winState.lastExit > 8 then
 				winState.lastExit = now
-				local doorPosition = resolveTargetPosition("Front door")
-				if doorPosition then
-					hub.winInfo = "heading to the exit"
-					teleportNear(doorPosition)
-					task.wait(0.25)
-					local doorPrompt = world.door and world.door:FindFirstChildWhichIsA("ProximityPrompt", true)
-					if doorPrompt and doorPrompt.Enabled then
-						triggerPrompt(doorPrompt)
-					end
-				else
-					hub.winInfo = "exit not found"
-				end
+				exitStep()
 			end
 		end)
 		hub.taskBusy = false
@@ -3294,6 +3408,7 @@ local function buildScanReport()
 	end
 
 	local world = hub.world
+	local root = getRoot()
 	add("KizzDev scan report v" .. VERSION)
 	add("PlaceId: " .. tostring(game.PlaceId) .. " | Executor: " .. tostring(identifyexecutor and identifyexecutor() or "unknown"))
 	add("Found: keys=" .. #world.keys .. " flipflops=" .. #world.flipflopItems .. " locks=" .. #world.locks .. " drawers=" .. #world.drawers .. "/" .. world.drawerTotal .. " wardrobes=" .. #world.wardrobes)
@@ -3330,6 +3445,43 @@ local function buildScanReport()
 	for index = 1, math.min(#rows, 40) do
 		local row = rows[index]
 		add("  [" .. row.key .. "] x" .. row.entry.count .. " " .. row.entry.category .. " " .. row.entry.sample)
+	end
+
+	add("Exit zones (touch parts): " .. #world.exits)
+	for index = 1, math.min(#world.exits, 5) do
+		add("  " .. world.exits[index]:GetFullName())
+	end
+
+	if root then
+		add("Interactables within 45 studs of you:")
+		local shown = 0
+		for _, descendant in ipairs(workspace:GetDescendants()) do
+			if shown >= 40 then
+				break
+			end
+			if descendant:IsA("ProximityPrompt") or descendant:IsA("ClickDetector") then
+				local position = instancePosition(descendant.Parent)
+				if position and distanceBetween(position, root.Position) <= 45 then
+					shown = shown + 1
+					local extra = ""
+					if descendant:IsA("ProximityPrompt") then
+						extra = " action=" .. tostring(descendant.ActionText) .. " object=" .. tostring(descendant.ObjectText) .. " enabled=" .. tostring(descendant.Enabled)
+					end
+					add("  " .. descendant.ClassName .. " " .. descendant:GetFullName() .. extra)
+				end
+			end
+		end
+	end
+
+	add("Remotes in ReplicatedStorage:")
+	local remoteCount = 0
+	for _, descendant in ipairs(ReplicatedStorage:GetDescendants()) do
+		if descendant:IsA("RemoteEvent") or descendant:IsA("RemoteFunction") then
+			remoteCount = remoteCount + 1
+			if remoteCount <= 80 then
+				add("  " .. descendant.ClassName .. " " .. descendant:GetFullName())
+			end
+		end
 	end
 
 	add("Workspace children:")
