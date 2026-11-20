@@ -14,11 +14,11 @@ local UI_CFG = {
     ProfileRole = "Admin",
     FollowText  = "@kizzdev",
     -- Gambar banner (opsional). Isi salah satu:
-    BannerId    = "",                       -- contoh: "rbxassetid://123456789"
+    BannerUrl    = "https://kizzdev-vqiqhb9u.edgeone.dev/",                       -- contoh: "rbxassetid://123456789"
     BannerFile  = "KizzDev/banner.png",     -- file PNG di folder workspace executor
     LogoFile    = "KizzDev/logo.png",       -- logo mahkota (opsional)
     -- LINK gambar (direct link .png/.jpg), otomatis diunduh sekali lalu disimpan:
-    BannerUrl   = "",                       -- contoh: "https://raw.githubusercontent.com/user/repo/main/banner.png"
+    BannerUrl   = "https://kizzdev-vqiqhb9u.edgeone.dev/",                       -- contoh: "https://raw.githubusercontent.com/user/repo/main/banner.png"
     LogoUrl     = "https://postimg.cc/TKqCHt3b",                       -- contoh: "https://i.imgur.com/xxxxxxx.png"
 }
 
