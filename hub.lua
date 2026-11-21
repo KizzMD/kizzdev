@@ -1,6 +1,6 @@
 --[[
     KizzDev | Legends Battlegrounds  v5
-    UI: Rayfield (tema ungu KizzDev) + overlay sendiri (logo, HUD, cooldown)
+    UI: Rayfield (tema ungu KizzDev) + HUD/cooldown overlay
     Menu   : RightCtrl / logo melayang
     Aimlock: tombol 🔒 melayang / T  |  ganti target: ⇄ / Y
     Game   : Q dash, F block, G awaken, M1 klik kiri, skill 1-4
@@ -451,52 +451,7 @@ local function Notify(msg)
     pcall(function() Rayfield:Notify({Title = "KizzDev", Content = tostring(msg), Duration = 3.5}) end)
 end
 
--- ============ LOGO (tertanam / link / file) ============
-local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-local function b64decode(s)
-    local lut = {}
-    for i = 1, 64 do lut[B64:byte(i)] = i - 1 end
-    local out, n = {}, 0
-    for i = 1, #s, 4 do
-        local b1, b2, b3, b4 = s:byte(i, i + 3)
-        local a, b, c, d = lut[b1], lut[b2], lut[b3], lut[b4]
-        if a and b then
-            local x = a * 262144 + b * 4096 + (c or 0) * 64 + (d or 0)
-            local o1 = bit32.rshift(x, 16)
-            local o2 = bit32.band(bit32.rshift(x, 8), 255)
-            local o3 = bit32.band(x, 255)
-            n += 1
-            if not c then out[n] = string.char(o1)
-            elseif not d then out[n] = string.char(o1, o2)
-            else out[n] = string.char(o1, o2, o3) end
-        end
-    end
-    return table.concat(out)
-end
-
-local function loadImage(id, file, url, key)
-    if id and id ~= "" then return id end
-    if not (getcustomasset and isfile and writefile) then return nil end
-    local ok, res = pcall(function()
-        if makefolder and not isfolder("KizzDev") then makefolder("KizzDev") end
-        if url and url ~= "" then
-            local h = 0
-            for i = 1, #url do h = (h * 31 + url:byte(i)) % 1000000007 end
-            local path = "KizzDev/cache_" .. h .. ".img"
-            if not isfile(path) then writefile(path, game:HttpGet(url)) end
-            return getcustomasset(path)
-        end
-        if file and file ~= "" and isfile(file) then return getcustomasset(file) end
-        local data = key and EMBED[key]
-        if data and data ~= "" then
-            local path = "KizzDev/kz_" .. key .. "_v5.jpg"
-            if not isfile(path) then writefile(path, b64decode(data)) end
-            return getcustomasset(path)
-        end
-    end)
-    if ok then return res end
-end
-local logoImg = loadImage(UI_CFG.LogoId, UI_CFG.LogoFile, UI_CFG.LogoUrl, "logo")
+local logoImg = nil -- Logo eksternal/embedded dihapus sesuai permintaan.
 
 -- ============ TARGET: PLAYER + NPC ============
 local NPCList, NPCObjs = {}, setmetatable({}, {__mode = "k"})
@@ -766,30 +721,7 @@ local Main = setmetatable({}, {__index = function(_, k)
     end
 end})
 
--- Splash singkat (logo)
-local Splash
-do
-    Splash = new("Frame", {Parent = Gui, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(6, 4, 12),
-        BackgroundTransparency = 0.1, BorderSizePixel = 0, ZIndex = 50})
-    local box = new("Frame", {Parent = Splash, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.42),
-        Size = UDim2.fromOffset(130, 130), BackgroundColor3 = C.bg, ZIndex = 51})
-    corner(box, 28) stroke(box, C.acc2, 2, 0.05)
-    if logoImg then
-        corner(new("ImageLabel", {Parent = box, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Image = logoImg,
-            ScaleType = Enum.ScaleType.Crop, ZIndex = 52}), 28)
-    else
-        new("TextLabel", {Parent = box, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Text = "K", ZIndex = 52,
-            Font = Enum.Font.GothamBlack, TextSize = 70, TextColor3 = C.acc2})
-    end
-    local t = new("TextLabel", {Parent = Splash, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.42, 82),
-        Size = UDim2.fromOffset(300, 34), BackgroundTransparency = 1, Text = "KIZZDEV", Font = Enum.Font.GothamBlack,
-        TextSize = 28, TextColor3 = Color3.new(1, 1, 1), ZIndex = 51})
-    new("UIGradient", {Parent = t, Color = ColorSequence.new(Color3.fromRGB(255, 235, 255), C.acc2)})
-    new("TextLabel", {Parent = Splash, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.42, 118),
-        Size = UDim2.fromOffset(300, 18), BackgroundTransparency = 1, Text = "Legends Battlegrounds  ·  v5",
-        Font = Enum.Font.GothamMedium, TextSize = 12, TextColor3 = C.sub, ZIndex = 51})
-    task.delay(15, function() if Splash and Splash.Parent then Splash:Destroy() end end)
-end
+local Splash = nil -- Splash overlay dihapus agar tidak menutupi menu.
 
 -- ================= TEMA =================
 local function buildTheme()
@@ -832,17 +764,57 @@ local function buildTheme()
     return t
 end
 
-local Window = Rayfield:CreateWindow({
-    Name = "KizzDev  |  Legends Battlegrounds",
-    LoadingTitle = "KizzDev",
-    LoadingSubtitle = "Legends Battlegrounds v5",
-    Theme = buildTheme(),
-    ToggleUIKeybind = "RightControl",
-    DisableRayfieldPrompts = true,
-    DisableBuildWarnings = true,
-    ConfigurationSaving = {Enabled = false},
-    KeySystem = false,
-})
+local function Boot(msg)
+    if Shared.SplashMsg then pcall(function() Shared.SplashMsg.Text = msg end) end
+end
+local function tryWindow(cfg)
+    return pcall(function() return Rayfield:CreateWindow(cfg) end)
+end
+local Window
+do
+    Boot("Membuat jendela...")
+    local cfg = {
+        Name = "KizzDev  |  Legends Battlegrounds",
+        LoadingTitle = "KizzDev",
+        LoadingSubtitle = "Legends Battlegrounds v5",
+        ShowText = "KizzDev",
+        Theme = buildTheme(),
+        ToggleUIKeybind = Enum.KeyCode.RightControl,
+        DisableRayfieldPrompts = true,
+        DisableBuildWarnings = true,
+        ConfigurationSaving = {Enabled = false},
+        KeySystem = false,
+    }
+    local ok, res = tryWindow(cfg)
+    if not ok then
+        warn("[KizzDev] CreateWindow gagal: " .. tostring(res))
+        Boot("Mode aman...")
+        pcall(function() Rayfield:Destroy() end)
+        local ok2, lib = pcall(function() return loadstring(game:HttpGet("https://sirius.menu/rayfield"))() end)
+        if ok2 and lib then Rayfield = lib end
+        local ok3, res3 = tryWindow({Name = "KizzDev  |  Legends Battlegrounds", LoadingTitle = "KizzDev",
+            LoadingSubtitle = "Mode aman", Theme = "Amethyst", DisableRayfieldPrompts = true, DisableBuildWarnings = true,
+            ConfigurationSaving = {Enabled = false}, KeySystem = false})
+        if not ok3 then
+            warn("[KizzDev] CreateWindow mode aman gagal: " .. tostring(res3))
+            Boot("Gagal membuat UI: " .. tostring(res3))
+            Running = false
+            return
+        end
+        res = res3
+    end
+    Window = res
+    Boot("Membangun menu...")
+end
+
+local function Safe(name, fn)
+    local ok, err = pcall(fn)
+    if not ok then
+        warn("[KizzDev] error di " .. name .. ": " .. tostring(err))
+        Notify("Error " .. name .. ": " .. tostring(err))
+        Boot("Error " .. name .. ": " .. tostring(err))
+    end
+end
 
 local T = {}
 local function mkTab(key, name, icon)
@@ -968,7 +940,7 @@ Shared.ToggleLock = ToggleLock
 Flags.AntiAFK = true
 
 -- ---------- DASHBOARD ----------
-do
+Safe("Dashboard", function()
     local t = T.Home
     t:CreateSection("Selamat datang")
     t:CreateParagraph({Title = "KizzDev Hub  ·  Legends Battlegrounds",
@@ -998,10 +970,10 @@ do
     Tg(t, "Preset: Super Anti Lag", "PresetLag", function(on) SetFlag("SuperLag", on) end)
     t:CreateSection("Kontrol")
     t:CreateParagraph({Title = "Tombol", Content = "RightCtrl = buka/tutup menu\nT = kunci/lepas aimlock\nY = ganti target\nLogo melayang = buka menu"})
-end
+end)
 
 -- ---------- COMBAT ----------
-do
+Safe("Combat", function()
     local t = T.Combat
     t:CreateSection("Auto Attack")
     Tg(t, "Auto M1 (serang target)", "AutoM1")
@@ -1050,10 +1022,10 @@ do
     Tg(t, "Abaikan Teman", "IgnoreFriends")
     Tg(t, "Abaikan Pemain ber-ForceField (spawn)", "IgnoreFF")
     Tg(t, "Sertakan NPC / Dummy sebagai target", "IncludeNPC")
-end
+end)
 
 -- ---------- AIMLOCK ----------
-do
+Safe("Aimlock", function()
     local t = T.Aim
     t:CreateSection("Aimlock")
     Tg(t, "Aimlock Aktif", "AimLock", function(v)
@@ -1075,10 +1047,10 @@ do
         if n then AimTarget = n Notify("Target: " .. n.DisplayName) else Notify("Tidak ada target lain") end
     end)
     Btn(t, "Lepas / Kunci Ulang", function() ToggleLock() end)
-end
+end)
 
 -- ---------- AUTO FARM ----------
-do
+Safe("Auto Farm", function()
     local t = T.Farm
     t:CreateSection("Auto Farm")
     Tg(t, "Auto Farm (cari, kejar, serang otomatis)", "AutoFarm", function(on) ApplyFarm(on) end)
@@ -1095,10 +1067,10 @@ do
     Shared.FarmLabel = t:CreateLabel("Kill: 0  |  Damage total: 0")
     Btn(t, "Reset Statistik", function() Shared.Kills = 0 Shared.Dmg = 0 Shared.PB = 0 Notify("Statistik direset") end)
     t:CreateParagraph({Title = "Cara kerja", Content = "Farm mencari target terdekat (player, plus NPC kalau 'Sertakan NPC' di tab Combat aktif), mendekat, lalu menyerang. Preset 'Auto Farm' di Dashboard menyalakan semuanya sekaligus."})
-end
+end)
 
 -- ---------- DEFENSE ----------
-do
+Safe("Defense", function()
     local t = T.Def
     t:CreateSection("Block & Dodge")
     Tg(t, "Auto Block (F) saat musuh nyerang", "AutoBlock")
@@ -1126,10 +1098,10 @@ do
         if Root() then Shared.savedCF = Root().CFrame Notify("Posisi aman disimpan") end
     end)
     Tg(t, "Anti Void (balik ke tempat aman)", "AntiVoid")
-end
+end)
 
 -- ---------- VISUAL ----------
-do
+Safe("Visual", function()
     local t = T.Vis
     t:CreateSection("ESP")
     Tg(t, "ESP Highlight + Nama", "ESP", function() RefreshESP() end)
@@ -1163,10 +1135,10 @@ do
     Tg(t, "HUD Info Target", "TargetHUD")
     Sl(t, "Field of View Kamera", "CamFOV", 40, 120, 70, 1, function(v) Cam.FieldOfView = v end)
     Sl(t, "Zoom Maksimum Kamera", "Zoom", 20, 500, 128, 10, function(v) LP.CameraMaxZoomDistance = v end)
-end
+end)
 
 -- ---------- MOVEMENT ----------
-do
+Safe("Movement", function()
     local t = T.Move
     t:CreateSection("Kecepatan & Lompat")
     Tg(t, "WalkSpeed", "Speed", function(v) if not v and Hum() then Hum().WalkSpeed = 16 end end)
@@ -1185,10 +1157,10 @@ do
     Tg(t, "Spin", "Spin")
     Tg(t, "Ctrl + Klik = Teleport", "ClickTP")
     Sl(t, "Gravitasi", "Gravity", 20, 400, 196, 2, function(v) Workspace.Gravity = v end)
-end
+end)
 
 -- ---------- PERFORMANCE ----------
-do
+Safe("Performance", function()
     local t = T.Perf
     t:CreateSection("Anti Lag")
     Tg(t, "Anti Lag (matikan efek & bayangan)", "AntiLag", function(v)
@@ -1218,10 +1190,10 @@ do
     end)
     Tg(t, "Hapus Kabut", "NoFog", function(v) if v then Lighting.FogEnd = 9e9 end end)
     Sl(t, "Waktu (jam)", "ClockTime", 0, 24, 14, 0.5, function(v) Lighting.ClockTime = v end)
-end
+end)
 
 -- ---------- UTILITY ----------
-do
+Safe("Utility", function()
     local t = T.Util
     t:CreateSection("Teleport")
     PlayerDDs[#PlayerDDs + 1] = Dd(t, "Pilih Pemain", "TPTarget", PlayerNames(), "(pilih)")
@@ -1261,10 +1233,10 @@ do
     Btn(t, "Salin Job ID", function()
         if setclipboard then setclipboard(game.JobId) Notify("Job ID disalin") end
     end)
-end
+end)
 
 -- ---------- SETTINGS ----------
-do
+Safe("Settings", function()
     local t = T.Set
     t:CreateSection("Tampilan")
     Tg(t, "Tampilkan FPS & Ping di Dashboard", "ShowStats")
@@ -1276,7 +1248,7 @@ do
     end)
     t:CreateSection("Script")
     Btn(t, "Tutup Script (Unload)", function() if Shared.Unload then Shared.Unload() end end)
-end
+end)
 
 -- stat FPS/Ping (dipakai loop FPS)
 local statLast = ""
@@ -1413,22 +1385,8 @@ do
     end)
 end
 
--- tutup splash
-task.delay(0.8, function()
-    if Splash and Splash.Parent then
-        tween(Splash, 0.5, {BackgroundTransparency = 1})
-        for _, d in ipairs(Splash:GetDescendants()) do
-            pcall(function()
-                if d:IsA("TextLabel") then tween(d, 0.4, {TextTransparency = 1}) end
-                if d:IsA("ImageLabel") then tween(d, 0.4, {ImageTransparency = 1}) end
-                if d:IsA("Frame") then tween(d, 0.4, {BackgroundTransparency = 1}) end
-                if d:IsA("UIStroke") then tween(d, 0.4, {Transparency = 1}) end
-            end)
-        end
-        task.wait(0.6)
-        Splash:Destroy()
-    end
-end)
+-- Menu siap; tidak ada splash overlay.
+Boot("Siap")
 
 -- ============================================================
 --                    LOGIKA / LOOP
