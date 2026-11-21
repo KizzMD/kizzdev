@@ -694,11 +694,22 @@ end
 -- ============================================================
 --                 UI RAYFIELD (tema KizzDev)
 -- ============================================================
-local Els = {}
+local Els, FlagHooks = {}, {}
 local function SetFlag(flag, v)
+    v = v and true or false
+    local changed = Flags[flag] ~= v
+    Flags[flag] = v
     local e = Els[flag]
     if e then pcall(function() e:Set(v) end) end
-    if Flags[flag] ~= v then Flags[flag] = v end
+    -- Jalankan efek toggle secara langsung agar preset tidak bergantung pada
+    -- apakah versi Rayfield memanggil Callback ketika Set() digunakan.
+    if changed and FlagHooks[flag] then
+        task.spawn(function()
+            local ok, err = pcall(FlagHooks[flag], v)
+            if not ok then warn("[KizzDev] preset " .. flag .. ": " .. tostring(err)) end
+        end)
+    end
+    if Persist[flag] then queueSave() end
 end
 
 -- Deteksi apakah jendela Rayfield sedang terbuka (dipakai loop auto-klik)
@@ -837,10 +848,14 @@ mkTab("Set", "Settings", "settings")
 -- ================= WRAPPER ELEMEN =================
 local function Tg(tab, text, flag, hook)
     if Flags[flag] == nil then Flags[flag] = false end
+    FlagHooks[flag] = hook
+    Persist[flag] = true
     Els[flag] = tab:CreateToggle({Name = text, CurrentValue = Flags[flag] and true or false, Callback = function(v)
+        v = v and true or false
         if Flags[flag] == v then return end
         Flags[flag] = v
         if hook then task.spawn(hook, v) end
+        queueSave()
     end})
 end
 
@@ -953,12 +968,15 @@ Safe("Dashboard", function()
         for _, f in ipairs({"AutoM1", "AimLock", "AutoSkill", "Skill1", "Skill2", "Skill3", "Skill4", "AutoBlock", "FaceTarget", "Chase"}) do
             SetFlag(f, on)
         end
-        LockActive = true
+        LockActive = on
+        if not on then AimTarget = nil end
         Notify(on and "Auto Fight aktif. 🔒 / T kunci target, ⇄ / Y ganti target" or "Auto Fight mati")
     end)
     Tg(t, "Preset: Combo Fight (aimlock + auto combo)", "PresetCombo", function(on)
         for _, f in ipairs({"AimLock", "AutoCombo", "FaceTarget", "Chase", "AutoBlock"}) do SetFlag(f, on) end
-        LockActive = true
+        LockActive = on
+        if not on then AimTarget = nil end
+        Notify(on and "Combo Fight aktif" or "Combo Fight mati")
     end)
     Tg(t, "Preset: Auto Farm (player + NPC)", "PresetFarm", function(on)
         SetFlag("IncludeNPC", on)
@@ -969,7 +987,7 @@ Safe("Dashboard", function()
     end)
     Tg(t, "Preset: Super Anti Lag", "PresetLag", function(on) SetFlag("SuperLag", on) end)
     t:CreateSection("Kontrol")
-    t:CreateParagraph({Title = "Tombol", Content = "RightCtrl = buka/tutup menu\nT = kunci/lepas aimlock\nY = ganti target\nLogo melayang = buka menu"})
+    t:CreateParagraph({Title = "Tombol", Content = "RightCtrl = buka/tutup menu\nShow KizzDev = buka/tutup menu\nT = kunci/lepas aimlock\nY = ganti target"})
 end)
 
 -- ---------- COMBAT ----------
@@ -1353,37 +1371,54 @@ do
     end)
 end
 
--- Tombol logo melayang
-local Float = new("ImageButton", {Parent = Gui, Size = UDim2.fromOffset(50, 50), Position = UDim2.new(0, 12, 0.3, 0),
-    BackgroundColor3 = C.bg, Image = logoImg or "", ScaleType = Enum.ScaleType.Crop, AutoButtonColor = false})
-corner(Float, 25) stroke(Float, C.acc2, 2, 0)
-if not logoImg then
-    new("TextLabel", {Parent = Float, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Text = "K",
-        Font = Enum.Font.GothamBlack, TextSize = 24, TextColor3 = C.acc2})
-end
-do
-    local dragging, moved, start, startPos
-    Float.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            dragging, moved, start, startPos = true, false, i.Position, Float.Position
-        end
-    end)
-    Connect(UIS.InputChanged, function(i)
-        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-            local d = i.Position - start
-            if d.Magnitude > 6 then moved = true end
-            Float.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-        end
-    end)
-    Connect(UIS.InputEnded, function(i)
-        if dragging and (i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch) then
-            dragging = false
-            if not moved then
-                pcall(function() Rayfield:SetVisibility(not Main.Visible) end)
+-- Animasi halus pada tombol bawaan Rayfield "Show KizzDev".
+-- Tidak membuat tombol K bulat tambahan; tombol bawaan tetap menjadi kontrol menu.
+task.spawn(function()
+    local decorated = setmetatable({}, {__mode = "k"})
+    while Running do
+        task.wait(0.7)
+        local root = findRF()
+        if root then
+            for _, obj in ipairs(root:GetDescendants()) do
+                if (obj:IsA("TextButton") or obj:IsA("TextLabel"))
+                    and string.find(string.lower(obj.Text or ""), "kizzdev", 1, true)
+                    and not decorated[obj] then
+                    decorated[obj] = true
+                    pcall(function()
+                        obj.TextColor3 = C.acc2
+                        local grad = Instance.new("UIGradient")
+                        grad.Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Color3.fromRGB(225, 170, 255)),
+                            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150, 70, 255)),
+                            ColorSequenceKeypoint.new(1, Color3.fromRGB(245, 205, 255)),
+                        })
+                        grad.Parent = obj
+                        task.spawn(function()
+                            while Running and obj.Parent do
+                                tween(grad, 2.4, {Rotation = 360})
+                                task.wait(2.45)
+                                pcall(function() grad.Rotation = 0 end)
+                            end
+                        end)
+                        local st = Instance.new("UIStroke")
+                        st.Color = C.acc2
+                        st.Thickness = 1.2
+                        st.Transparency = 0.45
+                        st.Parent = obj
+                        task.spawn(function()
+                            while Running and st.Parent do
+                                tween(st, 0.9, {Transparency = 0.12})
+                                task.wait(0.9)
+                                tween(st, 0.9, {Transparency = 0.55})
+                                task.wait(0.9)
+                            end
+                        end)
+                    end)
+                end
             end
         end
-    end)
-end
+    end
+end)
 
 -- Menu siap; tidak ada splash overlay.
 Boot("Siap")
@@ -1847,4 +1882,4 @@ local function Unload()
 end
 Shared.Unload = Unload
 
-Notify("KizzDev LB v5 siap. RightCtrl / logo = buka tutup menu.")
+Notify("KizzDev LB v5 siap. Gunakan RightCtrl atau Show KizzDev untuk menu.")
