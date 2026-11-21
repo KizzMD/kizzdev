@@ -958,8 +958,7 @@ Flags.AntiAFK = true
 Safe("Dashboard", function()
     local t = T.Home
     t:CreateSection("Selamat datang")
-    t:CreateParagraph({Title = "KizzDev Hub  ·  Legends Battlegrounds",
-        Content = "Auto Farm, aimlock sticky, combo builder, Perfect Block Assist, Damage Indicator, Skill Cooldown Display, hitbox dan Super Anti Lag."})
+    -- Paragraph header dihapus: sebelumnya terpotong dan terlihat seperti teks KizzDev liar.
     t:CreateSection("Status")
     Shared.Status = t:CreateLabel("Kill: 0  |  Damage: 0  |  Target: -")
     Shared.StatEl = t:CreateLabel("FPS -- | Ping --")
@@ -1371,46 +1370,57 @@ do
     end)
 end
 
--- Animasi halus pada tombol bawaan Rayfield "Show KizzDev".
--- Tidak membuat tombol K bulat tambahan; tombol bawaan tetap menjadi kontrol menu.
+-- Animasi tepi neon pada tombol bawaan Rayfield "Show KizzDev".
+-- Tidak membuat tombol K bulat tambahan dan tidak mengubah fungsi tombol.
 task.spawn(function()
     local decorated = setmetatable({}, {__mode = "k"})
     while Running do
-        task.wait(0.7)
+        task.wait(0.5)
         local root = findRF()
         if root then
             for _, obj in ipairs(root:GetDescendants()) do
-                if (obj:IsA("TextButton") or obj:IsA("TextLabel"))
+                if obj:IsA("TextButton")
                     and string.find(string.lower(obj.Text or ""), "kizzdev", 1, true)
                     and not decorated[obj] then
                     decorated[obj] = true
                     pcall(function()
                         obj.TextColor3 = C.acc2
-                        local grad = Instance.new("UIGradient")
-                        grad.Color = ColorSequence.new({
-                            ColorSequenceKeypoint.new(0, Color3.fromRGB(225, 170, 255)),
-                            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150, 70, 255)),
-                            ColorSequenceKeypoint.new(1, Color3.fromRGB(245, 205, 255)),
+                        local textGrad = Instance.new("UIGradient")
+                        textGrad.Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Color3.fromRGB(235, 190, 255)),
+                            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(160, 75, 255)),
+                            ColorSequenceKeypoint.new(1, Color3.fromRGB(245, 210, 255)),
                         })
-                        grad.Parent = obj
+                        textGrad.Parent = obj
+
+                        local edge = Instance.new("UIStroke")
+                        edge.Name = "KizzDevNeonEdge"
+                        edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                        edge.Color = Color3.fromRGB(190, 105, 255)
+                        edge.Thickness = 1.5
+                        edge.Transparency = 0.18
+                        edge.Parent = obj
+
+                        local edgeGrad = Instance.new("UIGradient")
+                        edgeGrad.Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Color3.fromRGB(110, 35, 220)),
+                            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(245, 175, 255)),
+                            ColorSequenceKeypoint.new(1, Color3.fromRGB(125, 55, 255)),
+                        })
+                        edgeGrad.Parent = edge
+
                         task.spawn(function()
-                            while Running and obj.Parent do
-                                tween(grad, 2.4, {Rotation = 360})
-                                task.wait(2.45)
-                                pcall(function() grad.Rotation = 0 end)
-                            end
-                        end)
-                        local st = Instance.new("UIStroke")
-                        st.Color = C.acc2
-                        st.Thickness = 1.2
-                        st.Transparency = 0.45
-                        st.Parent = obj
-                        task.spawn(function()
-                            while Running and st.Parent do
-                                tween(st, 0.9, {Transparency = 0.12})
-                                task.wait(0.9)
-                                tween(st, 0.9, {Transparency = 0.55})
-                                task.wait(0.9)
+                            while Running and obj.Parent and edge.Parent do
+                                tween(textGrad, 2.8, {Rotation = 360})
+                                tween(edgeGrad, 2.8, {Rotation = 360})
+                                tween(edge, 0.8, {Transparency = 0.08, Thickness = 2.2})
+                                task.wait(0.85)
+                                tween(edge, 0.8, {Transparency = 0.42, Thickness = 1.35})
+                                task.wait(0.85)
+                                pcall(function()
+                                    textGrad.Rotation = 0
+                                    edgeGrad.Rotation = 0
+                                end)
                             end
                         end)
                     end)
